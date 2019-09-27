@@ -378,7 +378,7 @@ def main():
             name=dict(required=True),
             description=dict(),
             tenant=dict(),
-            resourcepool_moid=dict(required=True),git 
+            resourcepool_moid=dict(required=True), 
             datastore_moid=dict(required=True),
             mgmt_portgroup_moid=dict(required=True),
             datacenter_moid=dict(required=True),
