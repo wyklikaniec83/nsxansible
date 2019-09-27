@@ -52,12 +52,12 @@ def get_lswitch_details(session, lswitch_id):
     return session.read('logicalSwitch', uri_parameters={'virtualWireID': lswitch_id})['body']
 
 
-def create_lswitch(session, lswitchname, lswitchdesc, lswitchcpmode, scope):
+def create_lswitch(session, lswitchname, lswitchdesc, lswitchcpmode, lswitchtenant, scope):
     lswitch_create_dict = session.extract_resource_body_example('logicalSwitches', 'create')
     lswitch_create_dict['virtualWireCreateSpec']['controlPlaneMode'] = lswitchcpmode
     lswitch_create_dict['virtualWireCreateSpec']['name'] = lswitchname
     lswitch_create_dict['virtualWireCreateSpec']['description'] = lswitchdesc
-    lswitch_create_dict['virtualWireCreateSpec']['tenantId'] = 'Unused'
+    lswitch_create_dict['virtualWireCreateSpec']['tenantId'] = lswitchtenant
     return  session.create('logicalSwitches', uri_parameters={'scopeId': scope}, request_body_dict=lswitch_create_dict)
 
 
@@ -77,7 +77,8 @@ def main():
             name=dict(required=True),
             description=dict(),
             transportzone=dict(required=True),
-            controlplanemode=dict(default='UNICAST_MODE', choices=['UNICAST_MODE', 'MULTICAST_MODE', 'HYBRID_MODE'])
+            controlplanemode=dict(default='UNICAST_MODE', choices=['UNICAST_MODE', 'MULTICAST_MODE', 'HYBRID_MODE']),
+            tenant=dict()
         ),
         supports_check_mode=False
     )
@@ -91,7 +92,7 @@ def main():
 
     if len(lswitch_id) is 0 and 'present' in module.params['state']:
         ls_ops_response=create_lswitch(client_session, module.params['name'], module.params['description'],
-                                       module.params['controlplanemode'], vdn_scope)
+                                       module.params['controlplanemode'], module.params['tenant'], vdn_scope)
         module.exit_json(changed=True, argument_spec=module.params, ls_ops_response=ls_ops_response)
     elif len(lswitch_id) is not 0 and 'present' in module.params['state']:
         lswitch_details=get_lswitch_details(client_session,lswitch_id[0])

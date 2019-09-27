@@ -65,6 +65,7 @@ def create_dlr(client_session, module):
 
     dlr_create_dict['edge']['name'] = module.params['name']
     dlr_create_dict['edge']['description'] = module.params['description']
+    dlr_create_dict['edge']['tenant'] = module.params['tenant']
     dlr_create_dict['edge']['type'] = 'distributedRouter'
     dlr_create_dict['edge']['datacenterMoid'] = module.params['datacenter_moid']
     dlr_create_dict['edge']['appliances']['appliance']['resourcePoolId'] = module.params['resourcepool_moid']
@@ -376,7 +377,8 @@ def main():
             nsxmanager_spec=dict(required=True, no_log=True, type='dict'),
             name=dict(required=True),
             description=dict(),
-            resourcepool_moid=dict(required=True),
+            tenant=dict(),
+            resourcepool_moid=dict(required=True),git 
             datastore_moid=dict(required=True),
             mgmt_portgroup_moid=dict(required=True),
             datacenter_moid=dict(required=True),

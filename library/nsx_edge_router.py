@@ -58,6 +58,7 @@ def create_edge_service_gateway(client_session, module):
 
     create_edge_body['edge']['name'] = module.params['name']
     create_edge_body['edge']['description'] = module.params['description']
+    create_edge_body['edge']['tenant'] = module.params['tenant']
     create_edge_body['edge']['type'] = 'gatewayServices'
     create_edge_body['edge']['datacenterMoid'] = module.params['datacenter_moid']
     create_edge_body['edge']['appliances']['applianceSize'] = module.params['appliance_size']
@@ -374,6 +375,7 @@ def main():
             nsxmanager_spec=dict(required=True, no_log=True, type='dict'),
             name=dict(required=True),
             description=dict(),
+            tenant=dict(),
             appliance_size=dict(default='large', choices=['compact', 'large', 'xlarge', 'quadlarge']),
             resourcepool_moid=dict(required=True),
             datastore_moid=dict(required=True),
