@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-
+import logging
 
 __author__  = "matt.pinizzotto@wwt.com"
 
@@ -140,7 +140,7 @@ def normalize_neighbour_list(neighbour_list, localASNumber):
                 return False, 'Neighbour list entry {} in your list is missing the mandatory remoteASNumber parameter'.format(
                     neighbour.get('remoteASNumber', None))
             else:
-                neighbour['ipAddress'] = str(neighbour['ipAddress'])
+                neighbour['remoteASNumber'] = str(neighbour['remoteASNumber'])
 
             if neighbour.get('bgpFilters', 'missing') == 'missing':
                 neighbour['bgpFilters'] = None
@@ -181,6 +181,14 @@ def normalize_neighbour_list(neighbour_list, localASNumber):
             else:
                 neighbour['keepAliveTimer'] = str(neighbour['keepAliveTimer'])
 
+            if neighbour.get('password', 'missing') == 'missing':
+                return False, 'Neighbour list entry {} in your list is missing the mandatory password parameter'.format(
+                    neighbour.get('password', None))
+
+            else:
+                neighbour['password'] = str(neighbour['password'])
+
+
             new_neighbour_list.append(neighbour)
 
     return True, None, new_neighbour_list
@@ -188,20 +196,22 @@ def normalize_neighbour_list(neighbour_list, localASNumber):
 
 def check_bgp_neighbours(client_session, current_config, resource_body, bgp_neighbours):
     changed = False
+    n_neighbour_list = []
 
     if 'bgp' in current_config['routing']:
 
         if current_config['routing']['bgp']['bgpNeighbours']:
             c_neighbour_list = client_session.normalize_list_return(
                 current_config['routing']['bgp']['bgpNeighbours']['bgpNeighbour'])
+
         else:
             c_neighbour_list = []
 
         for items in bgp_neighbours:
             if not items in c_neighbour_list:
-                c_neighbour_list.append(items)
+                n_neighbour_list.append(items)
 
-        resource_body['bgp']['bgpNeighbours'] = {'bgpNeighbour': c_neighbour_list}
+        resource_body['bgp']['bgpNeighbours'] = {'bgpNeighbour': n_neighbour_list}
         changed = True
 
         return changed, current_config, resource_body
@@ -246,7 +256,7 @@ def main():
             state=dict(default='present', choices=['present', 'absent']),
             nsxmanager_spec=dict(required=True, no_log=True, type='dict'),
             edge_name=dict(required=True, type='str'),
-            graceful_restart=dict(default=True, type='bool'),
+            graceful_restart=dict(default=False, type='bool'),
             default_originate=dict(default=False, type='bool'),
             router_id=dict(required=True, type='str'),
             ecmp=dict(default='false', choices=['true', 'false']),
@@ -255,6 +265,8 @@ def main():
         ),
         supports_check_mode=False
     )
+
+    changed_state=False
 
     from nsxramlclient.client import NsxClient
 
@@ -275,7 +287,9 @@ def main():
     elif module.params['state'] == 'absent' and not check_bgp_state(current_config):
         module.exit_json(changed=False, current_config=None)
 
-    changed_state, resource_body = set_bgp_state(resource_body)
+    elif module.params['state'] == 'present' and not check_bgp_state(current_config):
+        changed_state, resource_body = set_bgp_state(resource_body)
+
     changed_as, resource_body = check_bgp_as(current_config, resource_body, module.params['localASNumber'])
     changed_opt, resource_body = check_bgp_options(current_config, resource_body, module.params['graceful_restart'],
                                                    module.params['default_originate'])
@@ -289,7 +303,7 @@ def main():
     changed_neighbours, current_config, resource_body = check_bgp_neighbours(client_session, current_config,
                                                                              resource_body, neighbour_list)
 
-    if (changed_state or changed_as or changed_opt or changed_neighbours or changed_rtid or changed_ecmp):
+    if (changed_state or changed_as or changed_opt or changed_neighbours or changed_rtid or changed_ecmp):        
         update_config(client_session, current_config, edge_id)
         update_config_bgp(client_session, resource_body, edge_id)
         module.exit_json(changed=True, current_config=current_config, resource_body=resource_body)
