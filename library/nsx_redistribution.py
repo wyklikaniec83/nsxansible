@@ -71,6 +71,7 @@ def check_prefixes(client_session, routing_cfg, d_prefix_list):
     if routing_cfg['routing']['routingGlobalConfig'].get('ipPrefixes'):
         prefixes_from_api = routing_cfg['routing']['routingGlobalConfig']['ipPrefixes'].get('ipPrefix')
         c_prefix_list = client_session.normalize_list_return(prefixes_from_api)
+
     else:
         c_prefix_list = []
 
@@ -82,6 +83,11 @@ def check_prefixes(client_session, routing_cfg, d_prefix_list):
                 if c_prefix['ipAddress'] != d_prefix['network']:
                     c_prefix['ipAddress'] = d_prefix['network']
                     changed = True
+                
+                if c_prefix['le']:
+                    if c_prefix['le'] != d_prefix['le']:
+                        c_prefix['le'] = d_prefix['le']
+                        changed = True
 
                 new_prefixes.append(c_prefix)
                 break
@@ -92,7 +98,7 @@ def check_prefixes(client_session, routing_cfg, d_prefix_list):
     c_prefix_names = [c_prefix['name'] for c_prefix in c_prefix_list]
     for d_prefix in d_prefix_list:
         if d_prefix['name'] not in c_prefix_names:
-            new_prefix = {'name': d_prefix['name'], 'ipAddress': d_prefix['network']}
+            new_prefix = {'name': d_prefix['name'], 'ipAddress': d_prefix['network'],'le': d_prefix['le']}
             new_prefixes.append(new_prefix)
             changed = True
 
