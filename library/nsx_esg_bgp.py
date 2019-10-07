@@ -4,7 +4,7 @@
 
 __author__  = "matt.pinizzotto@wwt.com"
 
-
+import copy
 
 def get_edge(client_session, edge_name):
     all_edge = client_session.read_all_pages('nsxEdges', 'read')
@@ -103,6 +103,12 @@ def check_bgp_options(current_config, resource_body, graceful_restart, default_o
         elif c_grst != graceful_restart and not graceful_restart:
             resource_body['bgp']['gracefulRestart'] = 'false'
             changed = True
+        elif c_grst == graceful_restart and not graceful_restart:
+            resource_body['bgp']['gracefulRestart'] = 'false'
+            changed = False
+        else:
+            resource_body['bgp']['gracefulRestart'] = 'true'
+            changed = False
 
         if c_dio != default_originate and default_originate:
             resource_body['bgp']['defaultOriginate'] = 'true'
@@ -193,8 +199,36 @@ def normalize_neighbour_list(neighbour_list, localASNumber):
 
     return True, None, new_neighbour_list
 
+def compare_without_password(input_bgp_neighbours, api_neighbour_list): # Take two lists of dictionaries and compare them excluding password key as this is encrytped from API
+    changed = False
+    
+    d1pass = False
+    d2pass = False
 
-def check_bgp_neighbours(client_session, current_config, resource_body, bgp_neighbours):
+    for d1 in input_bgp_neighbours:
+        for key, value in d1.items():
+            if key == 'password':
+                d1.pop(key)
+                d1pass = True
+
+    for d2 in api_neighbour_list:
+        for key, value in d2.items():
+            if key == 'password':
+                d2.pop(key)
+                d2pass = True
+
+    for items in input_bgp_neighbours:
+        if not items in api_neighbour_list:
+            changed = True
+
+    if (d1pass and d2pass) or (not d1pass and not d2pass): # Check if MD5 password was added or removed
+        passchange = False
+    else:
+        passchange = True
+
+    return changed
+
+def check_bgp_neighbours(client_session, current_config, resource_body, bgp_neighbours, add_nbr_overload):
     changed = False
     n_neighbour_list = []
 
@@ -207,13 +241,17 @@ def check_bgp_neighbours(client_session, current_config, resource_body, bgp_neig
         else:
             c_neighbour_list = []
 
-        for items in bgp_neighbours:
-            if not items in c_neighbour_list:
-                n_neighbour_list.append(items)
+        pop_bgp_neighbours =  copy.deepcopy(bgp_neighbours)
+        pop_c_neighbour_list =  copy.deepcopy(c_neighbour_list)      
+
+        if compare_without_password(pop_bgp_neighbours,pop_c_neighbour_list) or add_nbr_overload:
+            for items in bgp_neighbours:
+                if not items in c_neighbour_list:
+                    n_neighbour_list.append(items)
+                    changed = True
 
         resource_body['bgp']['bgpNeighbours'] = {'bgpNeighbour': n_neighbour_list}
-        changed = True
-
+        
         return changed, current_config, resource_body
 
     else:
@@ -267,6 +305,7 @@ def main():
     )
 
     changed_state=False
+    add_nbr_overload=False
 
     from nsxramlclient.client import NsxClient
 
@@ -293,6 +332,7 @@ def main():
     changed_as, resource_body = check_bgp_as(current_config, resource_body, module.params['localASNumber'])
     changed_opt, resource_body = check_bgp_options(current_config, resource_body, module.params['graceful_restart'],
                                                    module.params['default_originate'])
+
     changed_rtid, current_config = check_router_id(current_config, module.params['router_id'])
     changed_ecmp, current_config = check_ecmp(current_config, module.params['ecmp'])
 
@@ -300,13 +340,20 @@ def main():
     if not valid:
         module.fail_json(msg=msg)
 
-    changed_neighbours, current_config, resource_body = check_bgp_neighbours(client_session, current_config,
-                                                                             resource_body, neighbour_list)
+    if  (changed_state or changed_as or changed_opt):
+        add_nbr_overload = True
 
-    if (changed_state or changed_as or changed_opt or changed_neighbours or changed_rtid or changed_ecmp):        
+    changed_neighbours, current_config, resource_body = check_bgp_neighbours(client_session, current_config,
+                                                                             resource_body, neighbour_list,add_nbr_overload)
+
+    if  (changed_rtid or changed_ecmp):
         update_config(client_session, current_config, edge_id)
-        update_config_bgp(client_session, resource_body, edge_id)
         module.exit_json(changed=True, current_config=current_config, resource_body=resource_body)
+
+    if  (changed_neighbours or changed_state or changed_as or changed_opt):
+        update_config_bgp(client_session, resource_body, edge_id)
+        
+        module.exit_json(changed=True, current_config=current_config, resource_body=resource_body)        
     else:
         module.exit_json(changed=False, current_config=current_config, resource_body=resource_body)
 
